@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Ninja Rider Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: a sticky toolbar, then summary tiles, then charts and tables in a two-column grid. */
+  :root {
+    --bg: #f6f5fb; --surface: #ffffff; --surface-2: #f0eef8; --fg: #1d1b26; --muted: #6b6880; --line: #e3e0ef;
+    --accent: #7c3aed; --accent-soft: #ede9fe; --teal: #0d9488; --gold: #b7791f;
+    --good: #15803d; --warn: #b45309; --bad: #c2410c;
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111018; --surface: #1a1823; --surface-2: #23202f; --fg: #ecebf3; --muted: #9c98b0; --line: #2e2b3b;
+      --accent: #a78bfa; --accent-soft: #2e1f55; --teal: #2dd4bf; --gold: #f2c35b;
+      --good: #4ade80; --warn: #fbbf24; --bad: #fb923c; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 var(--font); }
+  button, input, select { font: inherit; color: inherit; }
+  button { height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-weight: 500; }
+  button:hover, a.button:hover { border-color: var(--accent); }
+  a.button { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--surface); color: inherit; text-decoration: none; font-weight: 500; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.small { height: 28px; padding: 0 10px; font-size: 12px; }
+  button.danger { color: var(--bad); }
+  button.danger.confirm { background: var(--bad); border-color: var(--bad); color: #fff; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input, select { height: 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); padding: 0 10px; }
+  h1, h2 { text-wrap: balance; margin: 0; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  .login form { width: min(360px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 28px; display: grid; gap: 14px; }
+  .login h1 { font-size: 20px; }
+  .login p { margin: 0; color: var(--muted); }
+  .login label { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .login input { width: 100%; height: 42px; }
+  .error { color: var(--bad); font-weight: 500; margin: 0; }
+
+  .bar { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line); }
+  .bar-inner, main { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .bar-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-block: 12px; }
+  .bar h1 { font-size: 17px; margin-right: auto; }
+  .bar h1 span { color: var(--accent); }
+  .bar .meta { color: var(--muted); font-size: 12px; }
+  .bar .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+
+  main { padding-block: 20px 48px; display: grid; gap: 20px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+  .tile .label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .tile .value { font-size: 26px; font-weight: 700; line-height: 1.2; margin-top: 4px; }
+  .tile .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .tile.accent { background: var(--accent-soft); border-color: transparent; }
+
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; min-width: 0; }
+  .card.wide { grid-column: 1 / -1; }
+  .card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 12px; margin-bottom: 12px; }
+  .card h2 { font-size: 15px; }
+  .card .hint { color: var(--muted); font-size: 12px; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  canvas.chart { width: 100%; height: 220px; display: block; }
+  canvas.chart.short { height: 160px; }
+
+  .bars { display: grid; gap: 8px; }
+  .bars .row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr) auto; gap: 10px; align-items: center; }
+  .bars .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bars .track { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+  .bars .fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .bars .count { color: var(--muted); font-size: 12px; min-width: 3ch; text-align: right; }
+  .empty { color: var(--muted); margin: 0; }
+
+  .table-wrap { overflow-x: auto; margin: 0 -18px; padding: 0 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600;
+    padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td.r, th.r { text-align: right; }
+  td .sub { display: block; color: var(--muted); font-size: 12px; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .pill.done { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good); }
+  .pill.quit { background: var(--surface-2); color: var(--muted); }
+  .pill.flag { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); }
+  .pill.hidden { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .stars { color: var(--gold); letter-spacing: 1px; white-space: nowrap; }
+  .stars .off { color: var(--line); }
+  .feedback { display: grid; gap: 12px; max-height: 560px; overflow: auto; }
+  .fb { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .fb p { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .fb .who { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 12px; color: var(--muted); }
+  .fb .who b { color: var(--fg); font-size: 13px; }
+  .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg);
+    padding: 10px 16px; border-radius: 10px; font-weight: 500; z-index: 10; }
+
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+
+<div id="login" class="login">
+  <form id="loginForm">
+    <h1>Ninja Rider admin</h1>
+    <p>Sign in to see players, scores and feedback.</p>
+    <label for="password">Admin password</label>
+    <input id="password" type="password" autocomplete="current-password" required>
+    <p id="loginError" class="error" role="alert" hidden></p>
+    <button class="primary" type="submit" id="loginBtn">Sign in</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <header class="bar">
+    <div class="bar-inner">
+      <h1>Ninja Rider <span>admin</span></h1>
+      <span class="meta" id="updated"></span>
+      <div class="tools">
+        <select id="range" aria-label="Date range">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+        <label class="check"><input type="checkbox" id="auto"> Auto-refresh</label>
+        <button id="refresh">Refresh</button>
+        <a class="button" href="/" target="_blank" rel="noopener">Open game</a>
+        <button id="logout">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="tiles" id="tiles" aria-label="Summary"></section>
+
+    <div class="grid">
+      <section class="card wide">
+        <div class="card-head">
+          <h2>Activity</h2>
+          <div class="legend"><span><i style="background:var(--accent)"></i>Rounds</span><span><i style="background:var(--teal)"></i>Players</span><span><i style="background:var(--gold)"></i>Page visits</span></div>
+        </div>
+        <canvas class="chart" id="dailyChart" role="img" aria-label="Rounds, players and visits per day"></canvas>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>Where players are</h2><span class="hint">by rounds played</span></div>
+        <div class="bars" id="countries"></div>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2>Top cities</h2><span class="hint">approximate, from the visitor's network</span></div>
+        <div class="bars" id="places"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>When people play</h2><span class="hint" id="tzHint"></span></div>
+        <canvas class="chart short" id="hourChart" role="img" aria-label="Rounds by hour of day"></canvas>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2>Devices, browsers, sources</h2></div>
+        <div class="bars" id="devices"></div>
+        <div class="bars" id="browsers" style="margin-top:14px"></div>
+        <div class="bars" id="referrers" style="margin-top:14px"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>Ratings</h2><span class="hint" id="ratingHint"></span></div>
+        <div class="bars" id="ratings"></div>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2>Leaderboard</h2><span class="hint">best verified round per player</span></div>
+        <div class="table-wrap"><table id="leaderboard"></table></div>
+      </section>
+
+      <section class="card wide">
+        <div class="card-head"><h2>Feedback</h2><span class="hint" id="feedbackHint"></span></div>
+        <div class="feedback" id="feedback"></div>
+      </section>
+
+      <section class="card wide">
+        <div class="card-head">
+          <h2>Players</h2>
+          <input id="playerSearch" type="search" placeholder="Search name or city" aria-label="Search players">
+        </div>
+        <div class="table-wrap"><table id="players"></table></div>
+      </section>
+
+      <section class="card wide">
+        <div class="card-head">
+          <h2>Recent rounds</h2>
+          <button class="small" id="exportPlays">Export CSV</button>
+        </div>
+        <div class="table-wrap"><table id="plays"></table></div>
+      </section>
+    </div>
+  </main>
+</div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const KEY = 'ninjaRider.admin';
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const $ = (id) => document.getElementById(id);
+  const regionNames = (() => { try { return new Intl.DisplayNames(['en'], { type: 'region' }); } catch { return null; } })();
+  let password = null, data = null, autoTimer = 0;
+
+  try { password = sessionStorage.getItem(KEY); } catch { /* sign in every time */ }
+
+  // --- small DOM helpers; every value from players is set as text, never as HTML
+  function el(tag, props = {}, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (k === 'class') node.className = v;
+      else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
+      else if (v !== undefined && v !== null && v !== false) node.setAttribute(k, v === true ? '' : v);
+    }
+    for (const child of children.flat()) if (child !== null && child !== undefined && child !== false) node.append(child);
+    return node;
+  }
+  const fmt = (n) => (n ?? 0).toLocaleString();
+  const flag = (code) => code && /^[A-Z]{2}$/.test(code) ? String.fromCodePoint(...[...code].map((c) => 0x1f1a5 + c.charCodeAt(0))) : '';
+  const country = (code) => (code ? `${flag(code)} ${regionNames?.of(code) ?? code}` : 'Unknown');
+  const place = (r) => [r.city, r.country ? (regionNames?.of(r.country) ?? r.country) : null].filter(Boolean).join(', ') || 'Unknown';
+  const when = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  const duration = (s) => {
+    if (!s) return '0s';
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return h ? `${h}h ${m}m` : m ? `${m}m ${sec}s` : `${sec}s`;
+  };
+  const ago = (iso) => {
+    const s = (Date.now() - new Date(iso)) / 1000;
+    if (s < 60) return 'just now';
+    if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+    return `${Math.floor(s / 86400)} d ago`;
+  };
+  const starsOf = (n) => el('span', { class: 'stars', 'aria-label': `${n} of 5 stars` }, '★'.repeat(n), el('span', { class: 'off' }, '★'.repeat(5 - n)));
+  function toast(text) {
+    $('toast').textContent = text;
+    $('toast').hidden = false;
+    clearTimeout(toast.t);
+    toast.t = setTimeout(() => { $('toast').hidden = true; }, 2200);
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(path, { ...options, headers: { ...(options.headers || {}), authorization: `Bearer ${password}`, 'content-type': 'application/json' } });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(body.error || `Request failed (${res.status})`), { status: res.status });
+    return body;
+  }
+
+  // --- sign in
+  function showLogin(message) {
+    $('app').hidden = true;
+    $('login').hidden = false;
+    $('loginError').textContent = message || '';
+    $('loginError').hidden = !message;
+    $('password').focus();
+  }
+
+  $('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    password = $('password').value;
+    $('loginBtn').disabled = true;
+    $('loginBtn').textContent = 'Signing in…';
+    const ok = await load();
+    $('loginBtn').disabled = false;
+    $('loginBtn').textContent = 'Sign in';
+    if (ok) try { sessionStorage.setItem(KEY, password); } catch { /* not remembered */ }
+  });
+
+  $('logout').addEventListener('click', () => {
+    try { sessionStorage.removeItem(KEY); } catch { /* nothing stored */ }
+    password = null;
+    $('password').value = '';
+    showLogin();
+  });
+
+  async function load() {
+    try {
+      data = await api(`/api/admin/stats?days=${$('range').value}&tz=${encodeURIComponent(tz)}`);
+    } catch (err) {
+      const message = err.status ? err.message : 'Could not reach the server. Check your connection.';
+      if (err.status === 401 || err.status === 503 || !data) showLogin(message);
+      else toast(message);
+      return false;
+    }
+    $('login').hidden = true;
+    $('app').hidden = false;
+    render();
+    return true;
+  }
+
+  $('refresh').addEventListener('click', () => load().then((ok) => ok && toast('Updated')));
+  $('range').addEventListener('change', load);
+  $('auto').addEventListener('change', (e) => {
+    clearInterval(autoTimer);
+    if (e.target.checked) autoTimer = setInterval(load, 60000);
+  });
+
+  // --- moderation
+  async function moderate(playerId, action) {
+    try {
+      await api('/api/admin/player', { method: 'POST', body: JSON.stringify({ playerId, action }) });
+      toast({ hide: 'Hidden from the leaderboard', show: 'Back on the leaderboard', delete: 'Player and their data deleted' }[action]);
+      load();
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+  // Deleting needs a second click within a few seconds.
+  function deleteButton(playerId) {
+    const button = el('button', { class: 'small danger', type: 'button' }, 'Delete');
+    button.addEventListener('click', () => {
+      if (button.classList.contains('confirm')) return moderate(playerId, 'delete');
+      button.classList.add('confirm');
+      button.textContent = 'Confirm delete';
+      setTimeout(() => { button.classList.remove('confirm'); button.textContent = 'Delete'; }, 4000);
+    });
+    return button;
+  }
+  const hideButton = (row) => el('button', { class: 'small', type: 'button', onclick: () => moderate(row.player_id ?? row.id, row.hidden ? 'show' : 'hide') }, row.hidden ? 'Show' : 'Hide');
+
+  // --- rendering
+  function tile(label, value, sub, accent) {
+    return el('div', { class: `tile${accent ? ' accent' : ''}` },
+      el('div', { class: 'label' }, label), el('div', { class: 'value num' }, value), sub ? el('div', { class: 'sub' }, sub) : null);
+  }
+
+  function bars(container, rows, label, emptyText) {
+    const max = Math.max(1, ...rows.map((r) => r.count));
+    container.replaceChildren(...(rows.length ? rows.map((r) => el('div', { class: 'row' },
+      el('span', { class: 'name', title: label(r) }, label(r)),
+      el('span', { class: 'track' }, el('span', { class: 'fill', style: `width:${(r.count / max) * 100}%` })),
+      el('span', { class: 'count num' }, fmt(r.count)))) : [el('p', { class: 'empty' }, emptyText)]));
+  }
+
+  function table(node, head, rows, emptyText) {
+    node.replaceChildren(
+      el('thead', {}, el('tr', {}, head.map(([text, cls]) => el('th', { class: cls }, text)))),
+      el('tbody', {}, rows.length ? rows : el('tr', {}, el('td', { colspan: head.length, class: 'empty' }, emptyText))),
+    );
+  }
+
+  function render() {
+    const t = data.totals;
+    $('updated').textContent = `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { timeStyle: 'short' })}`;
+    const quit = t.plays - t.finished;
+    $('tiles').replaceChildren(
+      tile('Players', fmt(t.players), `${fmt(t.new_players_today)} new today · ${fmt(t.returning_players)} played more than once`, true),
+      tile('Rounds played', fmt(t.plays), `${fmt(t.finished)} finished · ${fmt(quit)} quit early`),
+      tile('Today', fmt(t.plays_today), `rounds by ${fmt(t.players_today)} player${t.players_today === 1 ? '' : 's'}`),
+      tile('Page visits', fmt(t.visits), t.visits ? `${Math.min(100, Math.round((t.players / t.visits) * 100))}% went on to play` : 'no visits yet'),
+      tile('Total play time', duration(t.play_seconds), t.finished ? `${duration(Math.round(t.play_seconds / t.finished))} per round` : ''),
+      tile('Average score', fmt(t.avg_score), `best ${fmt(t.best_score)}`),
+      tile('Rating', t.avg_rating ? `${t.avg_rating.toFixed(1)} / 5` : '–', `${fmt(t.feedback)} review${t.feedback === 1 ? '' : 's'}`),
+      tile('Flagged rounds', fmt(t.flagged), 'kept off the leaderboard'),
+    );
+
+    drawDaily();
+    drawHours();
+    $('tzHint').textContent = `hour of day, ${data.tz}`;
+
+    bars($('countries'), data.countries.map((r) => ({ ...r, count: r.plays })), (r) => country(r.country), 'No rounds yet.');
+    bars($('places'), data.places.map((r) => ({ ...r, count: r.plays })), place, 'No rounds yet.');
+    bars($('devices'), data.devices, (r) => `${(r.name ?? 'unknown').replace(/^./, (c) => c.toUpperCase())}`, 'No devices yet.');
+    bars($('browsers'), data.browsers, (r) => r.name ?? 'Unknown', '');
+    bars($('referrers'), data.referrers, (r) => r.name === 'Direct' ? 'Direct link' : r.name, '');
+
+    const ratingRows = [5, 4, 3, 2, 1].map((n) => ({ name: n, count: data.ratings.find((r) => r.rating === n)?.count ?? 0 }));
+    bars($('ratings'), ratingRows, (r) => `${'★'.repeat(r.name)}`, 'No ratings yet.');
+    $('ratingHint').textContent = t.avg_rating ? `average ${t.avg_rating.toFixed(2)} from ${fmt(t.feedback)}` : '';
+
+    table($('leaderboard'), [['#', 'r'], ['Player'], ['Score', 'r'], ['']],
+      data.leaderboard.map((r, i) => el('tr', {},
+        el('td', { class: 'r num' }, String(i + 1)),
+        el('td', {}, r.name, r.hidden ? [' ', el('span', { class: 'pill hidden' }, 'hidden')] : null, el('span', { class: 'sub' }, [r.city, r.country].filter(Boolean).join(', ') || '—')),
+        el('td', { class: 'r num' }, fmt(r.score)),
+        el('td', {}, hideButton(r)))),
+      'No finished rounds yet.');
+
+    $('feedbackHint').textContent = `${fmt(data.feedback.length)} most recent`;
+    $('feedback').replaceChildren(...(data.feedback.length ? data.feedback.map((f) => el('article', { class: 'fb' },
+      el('div', { class: 'who' }, starsOf(f.rating), el('b', {}, f.name ?? 'Deleted player'), f.score != null ? `scored ${fmt(f.score)}` : null, el('span', { title: when(f.created_at) }, ago(f.created_at))),
+      f.message ? el('p', {}, f.message) : null)) : [el('p', { class: 'empty' }, 'No feedback yet.')]));
+
+    renderPlayers();
+
+    table($('plays'), [['When'], ['Player'], ['Where'], ['Device'], ['Score', 'r'], ['Time', 'r'], ['Targets · gold · hurdles · orbs'], ['Status']],
+      data.plays.map((p) => el('tr', {},
+        el('td', {}, ago(p.started_at), el('span', { class: 'sub' }, when(p.started_at))),
+        el('td', {}, p.name),
+        el('td', {}, place(p)),
+        el('td', {}, p.device ?? '—', el('span', { class: 'sub' }, p.browser ?? '')),
+        el('td', { class: 'r num' }, p.finished_at ? fmt(p.score) : '—'),
+        el('td', { class: 'r num' }, p.finished_at ? duration(p.duration_s) : '—'),
+        el('td', { class: 'num' }, p.finished_at ? `${p.targets} · ${p.gold} · ${p.hurdles} · ${p.orbs}` : '—'),
+        el('td', {}, p.flagged ? el('span', { class: 'pill flag', title: 'Too fast or too high to be real; kept off the leaderboard' }, 'flagged')
+          : p.finished_at ? el('span', { class: 'pill done' }, 'finished') : el('span', { class: 'pill quit' }, 'quit or playing')))),
+      'No rounds yet.');
+  }
+
+  function renderPlayers() {
+    const q = $('playerSearch').value.trim().toLowerCase();
+    const rows = data.players.filter((p) => !q || p.name.toLowerCase().includes(q) || (p.city ?? '').toLowerCase().includes(q));
+    table($('players'), [['Player'], ['Where'], ['Rounds', 'r'], ['Best', 'r'], ['Play time', 'r'], ['First seen'], ['Last seen'], ['']],
+      rows.map((p) => el('tr', {},
+        el('td', {}, p.name, p.hidden ? [' ', el('span', { class: 'pill hidden' }, 'hidden')] : null, el('span', { class: 'sub' }, p.device ?? '')),
+        el('td', {}, place(p)),
+        el('td', { class: 'r num' }, fmt(p.plays)),
+        el('td', { class: 'r num' }, fmt(p.best)),
+        el('td', { class: 'r num' }, duration(p.seconds)),
+        el('td', {}, when(p.created_at)),
+        el('td', {}, ago(p.last_seen)),
+        el('td', {}, el('div', { class: 'actions' }, hideButton(p), deleteButton(p.id))))),
+      q ? 'No players match.' : 'No players yet.');
+  }
+  $('playerSearch').addEventListener('input', () => data && renderPlayers());
+
+  // --- charts, drawn to scale on a canvas in the page's own colours
+  function prepare(canvas) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    const g = canvas.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const css = getComputedStyle(document.documentElement);
+    const color = (name) => css.getPropertyValue(name).trim();
+    g.font = `11px ${color('--font')}`;
+    return { g, w, h, color };
+  }
+
+  // An axis maximum of four whole, round steps, so every gridline label is a count the data can reach.
+  function niceMax(v) {
+    const raw = Math.max(1, v / 4);
+    const p = 10 ** Math.floor(Math.log10(raw)), n = raw / p;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p * 4;
+  }
+
+  function axes(g, w, h, max, pad, color) {
+    g.strokeStyle = color('--line');
+    g.fillStyle = color('--muted');
+    g.lineWidth = 1;
+    g.textAlign = 'right';
+    g.textBaseline = 'middle';
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.t + (h - pad.t - pad.b) * (1 - i / 4);
+      g.beginPath();
+      g.moveTo(pad.l, Math.round(y) + 0.5);
+      g.lineTo(w - pad.r, Math.round(y) + 0.5);
+      g.stroke();
+      g.fillText(fmt((max * i) / 4), pad.l - 6, y);
+    }
+  }
+
+  function drawDaily() {
+    const { g, w, h, color } = prepare($('dailyChart'));
+    const days = data.daily;
+    const pad = { l: 38, r: 8, t: 10, b: 24 };
+    const max = niceMax(Math.max(...days.map((d) => Math.max(d.plays, d.visits, d.players)), 0));
+    axes(g, w, h, max, pad, color);
+    const plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
+    const slot = plotW / days.length;
+    const y = (v) => pad.t + plotH * (1 - v / max);
+    g.fillStyle = color('--accent');
+    days.forEach((d, i) => {
+      const bw = Math.max(2, slot * 0.6);
+      g.fillRect(pad.l + slot * i + (slot - bw) / 2, y(d.plays), bw, plotH - (y(d.plays) - pad.t));
+    });
+    for (const [key, name] of [['players', '--teal'], ['visits', '--gold']]) {
+      g.strokeStyle = color(name);
+      g.lineWidth = 2;
+      g.beginPath();
+      days.forEach((d, i) => {
+        const x = pad.l + slot * i + slot / 2;
+        if (i) g.lineTo(x, y(d[key])); else g.moveTo(x, y(d[key]));
+      });
+      g.stroke();
+      // emphasise today
+      const last = days[days.length - 1];
+      g.fillStyle = color(name);
+      g.beginPath();
+      g.arc(pad.l + slot * (days.length - 0.5), y(last[key]), 3, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = color('--muted');
+    g.textAlign = 'center';
+    g.textBaseline = 'top';
+    const every = Math.ceil(days.length / Math.max(2, Math.floor(plotW / 64)));
+    days.forEach((d, i) => {
+      if ((days.length - 1 - i) % every) return;
+      const date = new Date(`${d.day}T12:00:00`);
+      g.fillText(date.toLocaleDateString([], { month: 'short', day: 'numeric' }), pad.l + slot * i + slot / 2, h - pad.b + 7);
+    });
+  }
+
+  function drawHours() {
+    const { g, w, h, color } = prepare($('hourChart'));
+    const counts = Array.from({ length: 24 }, (_, hr) => data.hours.find((r) => r.hour === hr)?.plays ?? 0);
+    const pad = { l: 30, r: 6, t: 8, b: 22 };
+    const max = niceMax(Math.max(...counts, 0));
+    axes(g, w, h, max, pad, color);
+    const plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b, slot = plotW / 24;
+    g.fillStyle = color('--accent');
+    counts.forEach((c, i) => {
+      const bh = plotH * (c / max);
+      g.fillRect(pad.l + slot * i + 1, pad.t + plotH - bh, Math.max(1, slot - 2), bh);
+    });
+    g.fillStyle = color('--muted');
+    g.textAlign = 'center';
+    g.textBaseline = 'top';
+    for (const hr of [0, 6, 12, 18]) g.fillText(`${String(hr).padStart(2, '0')}:00`, pad.l + slot * hr + slot / 2, h - pad.b + 6);
+  }
+
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (data) { drawDaily(); drawHours(); } }, 150);
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (data) { drawDaily(); drawHours(); } });
+
+  // --- CSV export of the rounds currently loaded
+  $('exportPlays').addEventListener('click', () => {
+    const cols = ['started_at', 'finished_at', 'name', 'city', 'region', 'country', 'device', 'browser', 'score', 'duration_s', 'targets', 'gold', 'hurdles', 'orbs', 'best_combo', 'flagged'];
+    const cell = (v) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      // a leading = + - @ would run as a formula in a spreadsheet
+      const safe = /^[=+\-@]/.test(s) ? `'${s}` : s;
+      return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+    };
+    const csv = [cols.join(','), ...data.plays.map((p) => cols.map((c) => cell(p[c])).join(','))].join('\n');
+    const link = el('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `ninja-rider-rounds-${new Date().toISOString().slice(0, 10)}.csv` });
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  });
+
+  if (password) load(); else showLogin();
+})();
+</script>
+</body>
+</html>

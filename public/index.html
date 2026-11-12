@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="description" content="Ninja Rider: gallop, jump hurdles, grab spirit orbs and knock down targets with katana and shuriken before the clock runs out.">
+<meta property="og:title" content="Ninja Rider">
+<meta property="og:description" content="A 90-second 3D horseback score attack in your browser.">
+<meta property="og:image" content="/cover.jpg">
+<title>Ninja Rider</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Antique&display=swap">
+<style>
+  :root { --ink: #0d0f14; --paper: #f4ead8; --red: #b3261e; --red-bright: #ff5a4d; --gold: #ffd75a; --spirit: #8fe3ff;
+    --line: rgba(244, 234, 216, .18); --glass: rgba(13, 15, 20, .62); --glass-strong: rgba(13, 15, 20, .82);
+    --display: "Zen Antique", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --edge-t: calc(14px + env(safe-area-inset-top, 0px)); --edge-b: calc(14px + env(safe-area-inset-bottom, 0px));
+    --edge-l: max(16px, env(safe-area-inset-left, 0px)); --edge-r: max(16px, env(safe-area-inset-right, 0px));
+    color-scheme: dark; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ink); color: var(--paper);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  canvas { display: block; }
+  body > canvas { position: fixed; inset: 0; touch-action: none; }
+  .panel { background: var(--glass); border: 1px solid var(--line); border-radius: 10px;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  small { opacity: .7; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* in-game HUD: only during a countdown, a round, or a pause */
+  body:not([data-state="playing"]):not([data-state="paused"]):not([data-state="countdown"]) .ingame { display: none !important; }
+  .ingame { user-select: none; -webkit-user-select: none; }
+  #hud { position: fixed; top: var(--edge-t); left: var(--edge-l); padding: 10px 14px; min-width: 150px; font-variant-numeric: tabular-nums; }
+  #hud b { display: block; font-size: 28px; line-height: 1.1; }
+  #hud .row { display: flex; gap: 18px; margin-top: 8px; }
+  #hud .row b { font-size: 18px; }
+  #time.low { color: var(--red-bright); animation: pulse 1s ease-in-out infinite; }
+  #comboBar { display: block; height: 3px; margin-top: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  #comboFill { display: block; height: 100%; width: 0; background: var(--gold); }
+  #side { position: fixed; top: var(--edge-t); right: var(--edge-r); display: grid; gap: 6px; justify-items: end; }
+  #radar { width: 120px; height: 120px; }
+  #side .buttons { display: flex; gap: 6px; }
+  #readout { font-size: 12px; opacity: .85; text-shadow: 0 1px 3px #000; font-variant-numeric: tabular-nums; }
+  #popups { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .popup { position: absolute; left: 0; top: 0; font-weight: 800; font-size: 20px; white-space: nowrap;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, .8); will-change: transform, opacity; }
+  .popup.gold { color: var(--gold); font-size: 24px; }
+  .popup.orb { color: var(--spirit); }
+  .popup.miss { color: var(--red-bright); }
+  #banner { position: fixed; left: 50%; top: 32%; transform: translate(-50%, -50%); pointer-events: none; opacity: 0;
+    font-family: var(--display); font-size: clamp(34px, 8vw, 72px); letter-spacing: .08em; white-space: nowrap;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, .7); }
+  #banner.show { animation: banner 1.1s cubic-bezier(.2, .8, .2, 1) forwards; }
+  #banner.count { font-size: clamp(64px, 16vw, 140px); }
+  #banner.combo { color: var(--gold); }
+  #banner.warn { color: var(--red-bright); }
+  @keyframes banner {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
+    18% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    75% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -60%) scale(.96); }
+  }
+  @keyframes pulse { 50% { opacity: .55; } }
+
+  button { height: 46px; min-width: 46px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--glass); color: var(--paper); font: inherit; font-weight: 600; cursor: pointer;
+    user-select: none; -webkit-user-select: none; }
+  button:hover { border-color: rgba(244, 234, 216, .45); }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--gold); outline-offset: 2px; }
+  .ingame button { touch-action: none; }
+  .ingame button.down, .ingame button:active { background: var(--red); border-color: var(--red); }
+  button.primary { background: var(--red); border-color: var(--red); min-width: 140px; height: 48px; font-size: 15px;
+    letter-spacing: .06em; text-transform: uppercase; }
+  button.primary:hover:not(:disabled) { background: #c9342b; }
+  button.link { height: auto; min-width: 0; padding: 0; border: 0; background: none; color: var(--paper); opacity: .75;
+    font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+  button.link:hover { opacity: 1; }
+  a.link { color: var(--paper); opacity: .75; text-decoration: none; }
+  a.link:hover { opacity: 1; text-decoration: underline; }
+  #side button { height: 36px; min-width: 36px; padding: 0 10px; }
+  #muteBtn[aria-pressed="true"] { opacity: .45; }
+  #pad { position: fixed; bottom: var(--edge-b); left: var(--edge-l); display: grid; gap: 6px;
+    grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(2, 46px); }
+  #pad button { padding: 0; font-size: 18px; }
+  #pad .up { grid-column: 2; grid-row: 1; }
+  #pad .left { grid-column: 1; grid-row: 2; }
+  #pad .slow { grid-column: 2; grid-row: 2; }
+  #pad .right { grid-column: 3; grid-row: 2; }
+  #actions { position: fixed; bottom: var(--edge-b); right: var(--edge-r); display: flex; gap: 6px; flex-wrap: wrap;
+    justify-content: flex-end; max-width: calc(100vw - 190px); }
+
+  /* menu, pause and results screens */
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; overflow: auto;
+    padding-block: var(--edge-t) var(--edge-b); padding-left: var(--edge-l); padding-right: var(--edge-r);
+    background: radial-gradient(ellipse at center, rgba(13, 15, 20, .1), rgba(13, 15, 20, .6)); }
+  .card { width: min(820px, 100%); padding: 24px; background: var(--glass-strong); }
+  .card.narrow { width: min(400px, 100%); text-align: center; }
+  .split { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; }
+  .split > aside { border-left: 1px solid var(--line); padding-left: 24px; min-width: 0; }
+  /* with no side column (offline), the card narrows to one column */
+  .split:has(> aside[hidden]) { grid-template-columns: minmax(0, 1fr); width: min(520px, 100%); }
+  .card h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 40px; letter-spacing: .12em;
+    text-transform: uppercase; line-height: 1.05; text-wrap: balance; }
+  .card h1 span { color: var(--red-bright); }
+  .card h2 { margin: 0 0 4px; font-family: var(--display); font-weight: 400; font-size: 26px; letter-spacing: .1em; text-transform: uppercase; }
+  .card h3 { margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; opacity: .75; font-weight: 600; }
+  .lede { margin: 10px 0 18px; opacity: .85; max-width: 40ch; }
+  .welcome { margin: -8px 0 14px; color: var(--gold); }
+  label { display: block; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; opacity: .8; margin-bottom: 6px; }
+  .name-row { display: flex; gap: 8px; }
+  input, textarea { width: 100%; min-width: 0; border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, .35);
+    color: var(--paper); font: inherit; font-size: 16px; padding: 0 14px; }
+  input { height: 48px; }
+  textarea { padding: 10px 14px; resize: vertical; min-height: 72px; font-size: 15px; }
+  input::placeholder, textarea::placeholder { color: rgba(244, 234, 216, .4); }
+  .error { margin: 8px 0 0; color: var(--red-bright); font-weight: 600; }
+  .note { margin: 10px 0 0; font-size: 12px; opacity: .6; max-width: 46ch; }
+  details.howto { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+  details.howto summary { cursor: pointer; font-weight: 600; }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 10px 0 0; }
+  .keys dt { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; white-space: nowrap; color: var(--gold); }
+  .keys dd { margin: 0; opacity: .82; }
+  .menu-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 16px; font-size: 13px; }
+  .menu-links .best b { font-variant-numeric: tabular-nums; }
+  .empty { opacity: .65; margin: 0; }
+
+  .board { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-variant-numeric: tabular-nums; }
+  .board li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+    padding: 7px 8px; border-radius: 8px; }
+  .board li:nth-child(-n+3) .rank { color: var(--gold); }
+  .board li.you { background: rgba(255, 90, 77, .18); }
+  .board .rank { font-weight: 800; opacity: .9; text-align: right; }
+  .board .who { min-width: 0; display: grid; }
+  .board .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .board .who small { text-transform: none; letter-spacing: 0; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board .pts { font-weight: 700; }
+
+  .big { display: block; font-family: var(--display); font-size: 56px; font-weight: 400; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .record { color: var(--gold); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; }
+  .standing { margin: 8px 0 0; min-height: 1.45em; opacity: .9; }
+  .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 18px 0; text-align: center; }
+  .stats b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .stats small { font-size: 10px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .best { margin-top: 12px; opacity: .8; font-size: 13px; }
+  .stack { display: grid; gap: 8px; justify-items: center; }
+  .over-side { display: grid; gap: 22px; align-content: start; }
+
+  .feedback { display: grid; gap: 10px; }
+  .stars { display: flex; gap: 4px; }
+  .stars button { width: 44px; min-width: 44px; height: 44px; padding: 0; font-size: 24px; line-height: 1; color: rgba(244, 234, 216, .35); background: none; border-color: transparent; }
+  .stars button[aria-checked="true"] { color: var(--gold); }
+  .stars button:hover { border-color: var(--line); }
+  .feedback-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .feedback-row button { height: 40px; }
+  #feedbackStatus { font-size: 13px; opacity: .85; }
+  .thanks { margin: 0; opacity: .75; }
+
+  dialog { width: min(420px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 12px;
+    background: #15181f; color: var(--paper); }
+  dialog::backdrop { background: rgba(0, 0, 0, .55); }
+  .dialog-body { padding: 20px; display: grid; gap: 12px; }
+  .dialog-head { display: flex; justify-content: space-between; align-items: center; }
+  .dialog-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 22px; letter-spacing: .08em; text-transform: uppercase; }
+  .dialog-head button { height: 36px; min-width: 36px; padding: 0; }
+
+  #error { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center;
+    background: var(--ink); z-index: 10; }
+  @media (max-width: 720px) {
+    .split { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .split > aside { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 18px; }
+    .card { padding: 18px; }
+    .card h1 { font-size: 30px; }
+    .big { font-size: 44px; }
+    .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    #radar { width: 92px; height: 92px; }
+    #hud b { font-size: 22px; }
+    .keys .desktop { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #banner.show { animation-duration: .01ms; opacity: 1; }
+    #time.low { animation: none; }
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body data-state="menu">
+<div id="hud" class="panel ingame">
+  <small>Score</small><b id="score">0</b>
+  <div class="row">
+    <div><small>Time</small><b id="time">1:30</b></div>
+    <div><small>Combo</small><b id="combo">×1</b><i id="comboBar"><i id="comboFill"></i></i></div>
+  </div>
+</div>
+<div id="side" class="ingame">
+  <canvas id="radar" width="120" height="120" aria-label="Radar: red targets, gold bonus targets, blue spirit orbs, white hurdles"></canvas>
+  <div class="buttons">
+    <button id="muteBtn" aria-label="Sound" aria-pressed="false" title="Sound (M)">♪</button>
+    <button id="pauseBtn" aria-label="Pause" title="Pause (P)">❚❚</button>
+  </div>
+  <div id="readout"><span id="speed">0 km/h</span> · <span id="gait">standing</span></div>
+</div>
+<div id="popups" class="ingame"></div>
+<div id="banner" aria-live="polite"></div>
+<div id="pad" class="ingame">
+  <button class="up" data-key="KeyW" aria-label="Trot">▲</button>
+  <button class="left" data-key="KeyA" aria-label="Steer left">◀</button>
+  <button class="slow" data-key="KeyS" aria-label="Walk">▼</button>
+  <button class="right" data-key="KeyD" aria-label="Steer right">▶</button>
+</div>
+<div id="actions" class="ingame">
+  <button data-key="ShiftLeft">Gallop</button>
+  <button data-key="Space">Jump</button>
+  <button data-key="KeyF">Slash</button>
+  <button data-key="KeyG">Shuriken</button>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="card panel split">
+    <div>
+      <h1>Ninja <span>Rider</span></h1>
+      <p class="lede">90 seconds on horseback. Knock down targets, clear the hurdles, grab spirit orbs and keep your combo alive.</p>
+      <p id="welcome" class="welcome" hidden></p>
+      <form id="nameForm" novalidate>
+        <label for="playerName">Your rider name</label>
+        <div class="name-row">
+          <input id="playerName" name="playerName" autocomplete="nickname" maxlength="20" placeholder="e.g. Kaito" spellcheck="false" required>
+          <button id="startBtn" class="primary" type="submit">Start</button>
+        </div>
+        <p id="nameError" class="error" role="alert" hidden></p>
+        <p class="note">Your name, scores and approximate city are saved to run the leaderboard and improve the game.</p>
+      </form>
+      <details class="howto">
+        <summary>How to play</summary>
+        <dl class="keys">
+          <dt>W / Shift</dt><dd>trot / gallop <span class="desktop">(S to walk)</span></dd>
+          <dt>A D</dt><dd>steer</dd>
+          <dt>Space</dt><dd>jump. Clear a hurdle for 150, reach high orbs</dd>
+          <dt>G</dt><dd>shuriken, auto-aims ahead: 100 + range bonus</dd>
+          <dt>F</dt><dd>katana, ride in close: 250</dd>
+          <dt>Gold</dt><dd>gold targets pay triple and add 5 seconds</dd>
+          <dt>Orbs</dt><dd>ride through spirit orbs: 75, high ones 125</dd>
+          <dt>Combo</dt><dd>hit again within 5 s to raise the multiplier, up to ×5</dd>
+          <dt class="desktop">P · M · R</dt><dd class="desktop">pause · sound · rear up</dd>
+        </dl>
+      </details>
+      <div class="menu-links">
+        <span class="best">Your best <b id="menuBest">0</b></span>
+        <button class="link music-toggle" type="button" aria-pressed="true">♫ Music on</button>
+        <button id="menuFeedbackBtn" class="link" type="button" hidden>Give feedback</button>
+        <a id="backLink" class="link" href="/" hidden>← Back to portfolio</a>
+      </div>
+    </div>
+    <aside id="menuBoardWrap" hidden>
+      <h3>Top riders</h3>
+      <p id="menuBoardEmpty" class="empty" hidden>No scores yet. Be the first on the board.</p>
+      <ol id="menuBoard" class="board"></ol>
+    </aside>
+  </div>
+</div>
+
+<div id="paused" class="overlay" hidden>
+  <div class="card panel narrow">
+    <h2>Paused</h2>
+    <p>The clock is stopped.</p>
+    <div class="stack">
+      <button id="resumeBtn" class="primary">Resume</button>
+      <button id="restartBtn">Restart round</button>
+      <button class="link music-toggle" type="button" aria-pressed="true">♫ Music on</button>
+    </div>
+  </div>
+</div>
+
+<div id="over" class="overlay" hidden>
+  <div class="card panel split">
+    <div>
+      <h2>Time!</h2>
+      <b id="finalScore" class="big">0</b>
+      <div id="newBest" class="record" hidden>New personal best</div>
+      <p id="standing" class="standing" role="status"></p>
+      <div class="stats">
+        <div><b id="statTargets">0</b><small>targets</small></div>
+        <div><b id="statGold">0</b><small>gold</small></div>
+        <div><b id="statHurdles">0</b><small>hurdles</small></div>
+        <div><b id="statOrbs">0</b><small>orbs</small></div>
+        <div><b id="statCombo">×1</b><small>top combo</small></div>
+      </div>
+      <div class="actions">
+        <button id="againBtn" class="primary">Play again</button>
+        <button id="menuBtn">Change rider</button>
+      </div>
+      <div class="best">Your best <b id="finalBest">0</b></div>
+    </div>
+    <aside id="overSide" class="over-side">
+      <section id="boardWrap" hidden>
+        <h3>Leaderboard</h3>
+        <ol id="board" class="board"></ol>
+      </section>
+      <div id="feedbackHome">
+        <form id="feedbackForm" class="feedback" hidden>
+          <h3>Rate Ninja Rider</h3>
+          <div id="stars" class="stars" role="radiogroup" aria-label="Rating out of 5">
+            <button type="button" role="radio" aria-checked="false" aria-label="1 star">★</button>
+            <button type="button" role="radio" aria-checked="false" aria-label="2 stars">★</button>
+            <button type="button" role="radio" aria-checked="false" aria-label="3 stars">★</button>
+            <button type="button" role="radio" aria-checked="false" aria-label="4 stars">★</button>
+            <button type="button" role="radio" aria-checked="false" aria-label="5 stars">★</button>
+          </div>
+          <label for="feedbackText" class="sr">Your feedback</label>
+          <textarea id="feedbackText" maxlength="1000" rows="3" placeholder="What did you like? What should be better?"></textarea>
+          <div class="feedback-row">
+            <button id="feedbackSend" type="submit" disabled>Send feedback</button>
+            <span id="feedbackStatus" role="status"></span>
+          </div>
+        </form>
+      </div>
+      <p id="feedbackThanks" class="thanks" hidden>Thanks for your feedback.</p>
+    </aside>
+  </div>
+</div>
+
+<dialog id="feedbackDialog" aria-labelledby="feedbackTitle">
+  <div class="dialog-body">
+    <div class="dialog-head">
+      <h2 id="feedbackTitle">Feedback</h2>
+      <button id="closeFeedback" type="button" aria-label="Close">✕</button>
+    </div>
+  </div>
+</dialog>
+
+<div id="error" hidden><p>Could not start the game.<br><span id="errorText"></span></p></div>
+<script type="module" src="js/main.js"></script>
+<script>
+  // Modules do not load from file:// and need the three.js CDN, so say why if nothing started.
+  function showStartError(text) {
+    if (window.__started) return;
+    document.getElementById('errorText').textContent = text;
+    document.getElementById('error').hidden = false;
+  }
+  if (location.protocol === 'file:') {
+    showStartError('Serve this folder over HTTP, e.g. run "python3 -m http.server 8123" here and open http://localhost:8123');
+  } else {
+    setTimeout(() => showStartError('three.js did not load. Check the network connection and reload.'), 8000);
+  }
+</script>
+</body>
+</html>

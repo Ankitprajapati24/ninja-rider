@@ -1,0 +1,20 @@
+{
+  "name": "ninja-rider",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Ninja Rider: a 3D horseback score attack in the browser, with leaderboard, feedback and an admin dashboard.",
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file=.env.local --import tsx scripts/dev-server.ts",
+    "typecheck": "tsc -p api"
+  },
+  "dependencies": {
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.10",
+    "@types/pg": "8.11.10",
+    "tsx": "4.19.2",
+    "typescript": "5.6.3"
+  }
+}

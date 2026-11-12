@@ -64,9 +64,15 @@ async function migrate(client: pg.Client): Promise<void> {
 async function connect(): Promise<pg.Client> {
   const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
   if (!connectionString) throw new HttpError(503, 'The database is not connected. Set DATABASE_URL in the environment variables.');
+  if (!/^postgres(ql)?:\/\//.test(connectionString)) {
+    throw new HttpError(503, 'DATABASE_URL must start with postgresql:// (copy the connection string, not the psql command).');
+  }
   const client = new pg.Client({ connectionString });
   try {
-    await client.connect();
+    await client.connect().catch((err: unknown) => {
+      console.error('Database connection failed:', err);
+      throw new HttpError(503, 'Could not connect to the database. Check DATABASE_URL.');
+    });
     if (!migrated) {
       await migrate(client);
       migrated = true;

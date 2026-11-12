@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["./**/*.ts", "../scripts/*.ts", "../netlify/**/*.ts"]
+  "include": ["./**/*.ts", "../scripts/*.ts", "../worker/*.ts"]
 }

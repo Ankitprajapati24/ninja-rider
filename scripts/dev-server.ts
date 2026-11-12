@@ -1,10 +1,10 @@
-// Local stand-in for Netlify: serves public/ as static files, and passes /api/* to the same
-// function Netlify runs (netlify/functions/api.ts). Start with `npm run dev`.
+// Local stand-in for Cloudflare: serves public/ as static files, and passes /api/* to the same
+// Worker Cloudflare runs (worker/index.ts). Start with `npm run dev`.
 import { createServer } from 'node:http';
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
-import api from '../netlify/functions/api.js';
+import worker from '../worker/index.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const ROOT = resolve(import.meta.dirname, '..');
@@ -23,12 +23,12 @@ async function handleApi(req: import('node:http').IncomingMessage, res: import('
   }
   const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
   const request = new Request(url, { method: req.method, headers, body: hasBody ? Buffer.concat(chunks) : undefined });
-  const response = await api(request, {});
+  const response = await worker.fetch(request);
   res.writeHead(response.status, Object.fromEntries(response.headers));
   res.end(Buffer.from(await response.arrayBuffer()));
 }
 
-// Mirrors Netlify's pretty URLs: /admin and /admin/ both serve public/admin/index.html.
+// Mirrors Cloudflare's pretty URLs: /admin and /admin/ both serve public/admin/index.html.
 async function handleStatic(res: import('node:http').ServerResponse, url: URL) {
   let file = resolve(PUBLIC_DIR, `.${decodeURIComponent(url.pathname)}`);
   if (!file.startsWith(PUBLIC_DIR)) {

@@ -1,0 +1,10 @@
+# The game may be shown inside the portfolio (an iframe), but not inside anyone else's site.
+/*
+  Content-Security-Policy: frame-ancestors 'self' https://codebread.fun https://*.codebread.fun http://localhost:*
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# The admin page is never framed and kept out of search engines.
+/admin/*
+  ! Content-Security-Policy
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Robots-Tag: noindex, nofollow

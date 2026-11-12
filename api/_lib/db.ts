@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import pg from 'pg';
 import { HttpError } from './http.js';
 
@@ -41,22 +42,15 @@ CREATE TABLE IF NOT EXISTS visits (
 CREATE INDEX IF NOT EXISTS visits_created_idx ON visits (created_at);
 `;
 
-let pool: pg.Pool | null = null;
-let ready: Promise<void> | null = null;
+// A Cloudflare Worker cannot reuse a connection from an earlier request, so each request opens
+// one client, its queries share it, and withDatabase() closes it when the request is done.
+type Scope = { client?: Promise<pg.Client> };
+const requestScope = new AsyncLocalStorage<Scope>();
+let migrated = false;
 
-function getPool(): pg.Pool {
-  if (pool) return pool;
-  // DATABASE_URL is the one to set; Netlify DB sets NETLIFY_DATABASE_URL by itself
-  const connectionString = process.env.DATABASE_URL ?? process.env.NETLIFY_DATABASE_URL ?? process.env.POSTGRES_URL;
-  if (!connectionString) throw new HttpError(503, 'The database is not connected. Set DATABASE_URL in the environment variables.');
-  pool = new pg.Pool({ connectionString, max: 3 });
-  return pool;
-}
-
-async function migrate(p: pg.Pool): Promise<void> {
-  const client = await p.connect();
+async function migrate(client: pg.Client): Promise<void> {
   try {
-    // the lock stops two cold-starting functions from creating the same tables at once
+    // the lock stops two first requests from creating the same tables at once
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(727274)');
     await client.query(SCHEMA);
@@ -64,18 +58,39 @@ async function migrate(p: pg.Pool): Promise<void> {
   } catch (err) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw err;
+  }
+}
+
+async function connect(): Promise<pg.Client> {
+  const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+  if (!connectionString) throw new HttpError(503, 'The database is not connected. Set DATABASE_URL in the environment variables.');
+  const client = new pg.Client({ connectionString });
+  try {
+    await client.connect();
+    if (!migrated) {
+      await migrate(client);
+      migrated = true;
+    }
+    return client;
+  } catch (err) {
+    await client.end().catch(() => undefined);
+    throw err;
+  }
+}
+
+export async function withDatabase<T>(work: () => Promise<T>): Promise<T> {
+  const scope: Scope = {};
+  try {
+    return await requestScope.run(scope, work);
   } finally {
-    client.release();
+    await scope.client?.then((client) => client.end()).catch(() => undefined);
   }
 }
 
 export async function query<T>(text: string, params: unknown[] = []): Promise<T[]> {
-  const p = getPool();
-  ready ??= migrate(p).catch((err) => {
-    ready = null;
-    throw err;
-  });
-  await ready;
-  const result = await p.query(text, params);
+  const scope = requestScope.getStore();
+  if (!scope) throw new Error('query() must run inside withDatabase()');
+  scope.client ??= connect();
+  const result = await (await scope.client).query(text, params);
   return result.rows as T[];
 }

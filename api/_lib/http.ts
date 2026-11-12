@@ -75,7 +75,7 @@ function browserOf(ua: string): string {
 export type Geo = { country: string | null; region: string | null; city: string | null };
 export type ClientInfo = Geo & { device: string; browser: string };
 
-// Filled in by the hosting entry point (netlify/functions/api.ts) from Netlify's own lookup,
+// Filled in by the Worker (worker/index.ts) from Cloudflare's own lookup,
 // so a client cannot fake its location by sending headers.
 const geoByRequest = new WeakMap<Request, Geo>();
 
